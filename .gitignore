@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+
+# Env files
+.env
+.env.*
+
+# Virtual env
+venv/
+env/
+ENV/
+
+# Logs
+*.log
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Uploads (local fallback if used)
+uploads/
+
+# PyDev debugger temp files
+*.pydevd
+
+# Cache
+.cache/

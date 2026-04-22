@@ -1,0 +1,482 @@
+{% extends "base.html" %}
+
+{% block title %}Chat - Chatlet{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Chat-specific styles */
+    .chat-container {
+        height: calc(100vh - 4rem);
+    }
+    
+    @media (max-width: 768px) {
+        .chat-container {
+            height: calc(100vh - 3.5rem);
+        }
+    }
+    
+    .messages-container {
+        scroll-behavior: smooth;
+    }
+    
+    .message-bubble {
+        max-width: 70%;
+        word-wrap: break-word;
+    }
+    
+    @media (max-width: 640px) {
+        .message-bubble {
+            max-width: 85%;
+        }
+    }
+    
+    .attachment-preview {
+        max-width: 300px;
+        max-height: 200px;
+        object-fit: cover;
+    }
+    
+    .emoji-grid {
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        gap: 4px;
+    }
+    
+    .user-item.active {
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+        border-left: 3px solid #6366f1;
+    }
+    
+    .dark .user-item.active {
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="h-screen flex flex-col bg-gray-100 dark:bg-dark-950">
+    <!-- Top Navigation Bar -->
+    <nav class="h-16 bg-white dark:bg-dark-900 border-b border-gray-200 dark:border-dark-800 flex items-center justify-between px-4 lg:px-6 flex-shrink-0 z-30">
+        <!-- Left: Menu toggle & Logo -->
+        <div class="flex items-center gap-3">
+            <button 
+                id="sidebar-toggle"
+                class="lg:hidden p-2 hover:bg-gray-100 dark:hover:bg-dark-800 rounded-xl transition-colors"
+            >
+                <i data-lucide="menu" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i>
+            </button>
+            <div class="flex items-center gap-2">
+                <div class="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center">
+                    <i data-lucide="message-circle" class="w-5 h-5 text-white"></i>
+                </div>
+                <span class="text-xl font-bold gradient-text hidden sm:block">Chatlet</span>
+            </div>
+        </div>
+        
+        <!-- Center: Current chat info (mobile) -->
+        <div id="current-chat-info" class="flex items-center gap-3 lg:hidden">
+            <div id="mobile-chat-avatar" class="w-8 h-8 rounded-full bg-gray-200 dark:bg-dark-700 hidden"></div>
+            <span id="mobile-chat-name" class="font-medium text-gray-900 dark:text-white truncate max-w-32"></span>
+        </div>
+        
+        <!-- Right: User actions -->
+        <div class="flex items-center gap-2">
+            <!-- Theme toggle -->
+            <button 
+                onclick="ThemeManager.toggle()"
+                class="p-2 hover:bg-gray-100 dark:hover:bg-dark-800 rounded-xl transition-colors"
+                title="Toggle theme"
+            >
+                <i data-lucide="sun" class="w-5 h-5 text-gray-600 dark:text-gray-300 dark:hidden"></i>
+                <i data-lucide="moon" class="w-5 h-5 text-gray-600 dark:text-gray-300 hidden dark:block"></i>
+            </button>
+            
+            <!-- Notifications -->
+            <button 
+                id="notifications-btn"
+                class="p-2 hover:bg-gray-100 dark:hover:bg-dark-800 rounded-xl transition-colors relative"
+                title="Notifications"
+            >
+                <i data-lucide="bell" class="w-5 h-5 text-gray-600 dark:text-gray-300"></i>
+                <span id="notification-badge" class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center hidden">0</span>
+            </button>
+            
+            <!-- User menu -->
+            <div class="relative">
+                <button 
+                    id="user-menu-btn"
+                    class="flex items-center gap-2 p-1.5 hover:bg-gray-100 dark:hover:bg-dark-800 rounded-xl transition-colors"
+                >
+                    {% if user and user.profile_picture %}
+                        <img src="{{ user.profile_picture }}" alt="Profile" class="w-8 h-8 rounded-full object-cover">
+                    {% else %}
+                        <div class="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center text-white font-semibold text-sm">
+                            {{ username[0].upper() }}
+                        </div>
+                    {% endif %}
+                    <i data-lucide="chevron-down" class="w-4 h-4 text-gray-500 hidden sm:block"></i>
+                </button>
+                
+                <!-- User dropdown -->
+                <div id="user-menu-dropdown" class="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-gray-200 dark:border-dark-700 py-2 hidden z-50">
+                    <div class="px-4 py-3 border-b border-gray-200 dark:border-dark-700">
+                        <p class="font-semibold text-gray-900 dark:text-white">{{ username }}</p>
+                        {% if user and user.email %}
+                            <p class="text-sm text-gray-500 dark:text-gray-400 truncate">{{ user.email }}</p>
+                        {% endif %}
+                    </div>
+                    <a href="{{ url_for('edit_profile') }}" class="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-dark-700 text-gray-700 dark:text-gray-300">
+                        <i data-lucide="user" class="w-4 h-4"></i>
+                        <span>Edit Profile</span>
+                    </a>
+                    <button onclick="openSettingsModal()" class="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-dark-700 text-gray-700 dark:text-gray-300">
+                        <i data-lucide="settings" class="w-4 h-4"></i>
+                        <span>Settings</span>
+                    </button>
+                    <hr class="my-2 border-gray-200 dark:border-dark-700">
+                    <a href="{{ url_for('logout') }}" class="flex items-center gap-3 px-4 py-2.5 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                        <span>Logout</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Main Content -->
+    <div class="flex-1 flex overflow-hidden chat-container">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="w-80 bg-white dark:bg-dark-900 border-r border-gray-200 dark:border-dark-800 flex flex-col fixed lg:relative inset-y-0 left-0 z-40 transform -translate-x-full lg:translate-x-0 transition-transform duration-300">
+            <!-- Sidebar header -->
+            <div class="p-4 border-b border-gray-200 dark:border-dark-800">
+                <div class="relative">
+                    <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"></i>
+                    <input 
+                        type="text" 
+                        id="search-users"
+                        placeholder="Search conversations..."
+                        class="w-full pl-10 pr-4 py-2.5 bg-gray-100 dark:bg-dark-800 border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                    >
+                </div>
+            </div>
+            
+            <!-- Tabs -->
+            <div class="flex border-b border-gray-200 dark:border-dark-800">
+                <button 
+                    id="tab-chats"
+                    onclick="switchTab('chats')"
+                    class="flex-1 py-3 text-sm font-medium text-primary-500 border-b-2 border-primary-500"
+                >
+                    Chats
+                </button>
+                <button 
+                    id="tab-users"
+                    onclick="switchTab('users')"
+                    class="flex-1 py-3 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 border-b-2 border-transparent"
+                >
+                    Users
+                </button>
+            </div>
+            
+            <!-- User/Chat list -->
+            <div class="flex-1 overflow-y-auto hide-scrollbar">
+                <!-- General Chat -->
+                <div 
+                    id="general-chat-item"
+                    onclick="joinRoom('general')"
+                    class="user-item p-4 flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-800 border-b border-gray-100 dark:border-dark-800"
+                >
+                    <div class="w-12 h-12 rounded-full bg-gradient-to-br from-primary-400 to-purple-500 flex items-center justify-center text-white flex-shrink-0">
+                        <i data-lucide="hash" class="w-6 h-6"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between">
+                            <h3 class="font-semibold text-gray-900 dark:text-white">General</h3>
+                            <span id="general-badge" class="hidden px-2 py-0.5 bg-primary-500 text-white text-xs font-bold rounded-full">0</span>
+                        </div>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 truncate">Public chat room</p>
+                    </div>
+                </div>
+                
+                <!-- Users list -->
+                <div id="users-list" class="divide-y divide-gray-100 dark:divide-dark-800">
+                    {% for u in all_users if u.username != username %}
+                    <div 
+                        data-username="{{ u.username }}"
+                        onclick="startPrivateChat('{{ u.username }}')"
+                        class="user-item p-4 flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-800 transition-colors"
+                    >
+                        <div class="relative flex-shrink-0">
+                            {% if u.profile_picture %}
+                                <img src="{{ u.profile_picture }}" alt="{{ u.username }}" class="w-12 h-12 rounded-full object-cover">
+                            {% else %}
+                                <div class="w-12 h-12 rounded-full bg-gradient-to-br from-gray-400 to-gray-500 flex items-center justify-center text-white font-semibold">
+                                    {{ u.username[0].upper() }}
+                                </div>
+                            {% endif %}
+                            <span class="status-indicator absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-dark-900 {{ 'bg-green-500 online-pulse' if u.online else 'bg-gray-400' }}"></span>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between">
+                                <h3 class="font-medium text-gray-900 dark:text-white">{{ u.username }}</h3>
+                                <span class="user-badge hidden px-2 py-0.5 bg-primary-500 text-white text-xs font-bold rounded-full">0</span>
+                            </div>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 truncate">
+                                {% if u.online %}
+                                    <span class="text-green-500">Online</span>
+                                {% else %}
+                                    Last seen: {{ u.last_seen[:10] if u.last_seen else 'Unknown' }}
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </aside>
+        
+        <!-- Sidebar overlay (mobile) -->
+        <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30 hidden lg:hidden" onclick="toggleSidebar()"></div>
+        
+        <!-- Chat Area -->
+        <main class="flex-1 flex flex-col bg-gray-50 dark:bg-dark-950 min-w-0">
+            <!-- Chat header -->
+            <header id="chat-header" class="h-16 bg-white dark:bg-dark-900 border-b border-gray-200 dark:border-dark-800 flex items-center justify-between px-4 lg:px-6 flex-shrink-0">
+                <div class="flex items-center gap-3">
+                    <div id="chat-avatar" class="w-10 h-10 rounded-full bg-gradient-to-br from-primary-400 to-purple-500 flex items-center justify-center text-white">
+                        <i data-lucide="hash" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h2 id="chat-name" class="font-semibold text-gray-900 dark:text-white">General</h2>
+                        <p id="chat-status" class="text-sm text-gray-500 dark:text-gray-400">Public chat room</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-2">
+                    <!-- Typing indicator -->
+                    <div id="typing-indicator" class="hidden items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                        <span id="typing-user"></span>
+                        <div class="flex gap-1">
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                        </div>
+                    </div>
+                    
+                    <button onclick="openChatSettings()" class="p-2 hover:bg-gray-100 dark:hover:bg-dark-800 rounded-xl transition-colors">
+                        <i data-lucide="more-vertical" class="w-5 h-5 text-gray-600 dark:text-gray-300"></i>
+                    </button>
+                </div>
+            </header>
+            
+            <!-- Messages container -->
+            <div 
+                id="messages-container" 
+                class="flex-1 overflow-y-auto p-4 lg:p-6 messages-container"
+                {% if user and user.chat_background_type == "image" %}
+                style="background-image: url('{{ user.chat_background_value }}'); background-size: cover; background-position: center;"
+                {% endif %}
+            >
+                <div id="messages" class="space-y-4 max-w-4xl mx-auto">
+                    <!-- Messages will be loaded here -->
+                </div>
+                
+                <!-- Scroll to bottom button -->
+                <button 
+                    id="scroll-to-bottom"
+                    onclick="scrollToBottom()"
+                    class="fixed bottom-24 right-6 w-10 h-10 bg-primary-500 hover:bg-primary-600 text-white rounded-full shadow-lg flex items-center justify-center opacity-0 pointer-events-none transition-all"
+                >
+                    <i data-lucide="chevron-down" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <!-- Message input -->
+            <div class="bg-white dark:bg-dark-900 border-t border-gray-200 dark:border-dark-800 p-4">
+                <div class="max-w-4xl mx-auto">
+                    <!-- Attachment preview -->
+                    <div id="attachment-preview" class="hidden mb-3 flex flex-wrap gap-2">
+                        <!-- Previews will be added here -->
+                    </div>
+                    
+                    <!-- Reply preview -->
+                    <div id="reply-preview" class="hidden mb-3 p-3 bg-gray-100 dark:bg-dark-800 rounded-xl flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <div class="w-1 h-10 bg-primary-500 rounded-full"></div>
+                            <div>
+                                <p id="reply-username" class="text-sm font-medium text-primary-500"></p>
+                                <p id="reply-message" class="text-sm text-gray-600 dark:text-gray-400 truncate max-w-md"></p>
+                            </div>
+                        </div>
+                        <button onclick="cancelReply()" class="p-1 hover:bg-gray-200 dark:hover:bg-dark-700 rounded-lg">
+                            <i data-lucide="x" class="w-4 h-4 text-gray-500"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- Input area -->
+                    <form id="message-form" class="flex items-end gap-3">
+                        <div class="flex-1 relative">
+                            <textarea 
+                                id="message-input"
+                                rows="1"
+                                maxlength="2000"
+                                placeholder="Type a message..."
+                                class="w-full px-4 py-3 bg-gray-100 dark:bg-dark-800 border-0 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 max-h-32 overflow-y-auto"
+                            ></textarea>
+                            
+                            <!-- Character count -->
+                            <span id="char-count" class="absolute bottom-2 right-3 text-xs text-gray-400 hidden">0/2000</span>
+                        </div>
+                        
+                        <!-- Action buttons -->
+                        <div class="flex items-center gap-1">
+                            <!-- Emoji picker -->
+                            <button 
+                                type="button"
+                                onclick="toggleEmojiPicker()"
+                                class="p-3 hover:bg-gray-100 dark:hover:bg-dark-800 rounded-xl transition-colors"
+                            >
+                                <i data-lucide="smile" class="w-5 h-5 text-gray-500 dark:text-gray-400"></i>
+                            </button>
+                            
+                            <!-- Attachment -->
+                            <label class="p-3 hover:bg-gray-100 dark:hover:bg-dark-800 rounded-xl transition-colors cursor-pointer">
+                                <i data-lucide="paperclip" class="w-5 h-5 text-gray-500 dark:text-gray-400"></i>
+                                <input 
+                                    type="file" 
+                                    id="attachment-input"
+                                    multiple
+                                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.zip"
+                                    class="hidden"
+                                    onchange="handleAttachments(this.files)"
+                                >
+                            </label>
+                            
+                            <!-- Send button -->
+                            <button 
+                                type="submit"
+                                id="send-btn"
+                                class="p-3 bg-primary-500 hover:bg-primary-600 text-white rounded-xl transition-colors btn-hover"
+                            >
+                                <i data-lucide="send" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- Emoji Picker -->
+<div id="emoji-picker" class="fixed bottom-24 right-20 z-50 hidden">
+    <div class="bg-white dark:bg-dark-800 rounded-2xl shadow-xl border border-gray-200 dark:border-dark-700 p-4 w-80 emoji-picker-container">
+        <div class="flex items-center justify-between mb-3">
+            <span class="font-medium text-gray-900 dark:text-white">Emojis</span>
+            <button onclick="toggleEmojiPicker()" class="p-1 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
+                <i data-lucide="x" class="w-4 h-4 text-gray-500"></i>
+            </button>
+        </div>
+        <div class="emoji-grid max-h-64 overflow-y-auto">
+            <!-- Emojis will be loaded here -->
+        </div>
+    </div>
+</div>
+
+<!-- Context Menu -->
+<div id="context-menu" class="fixed z-50 hidden">
+    <div class="bg-white dark:bg-dark-800 rounded-xl shadow-xl border border-gray-200 dark:border-dark-700 py-2 min-w-48 context-menu">
+        <button onclick="copyMessage()" class="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-dark-700 text-gray-700 dark:text-gray-300 text-sm">
+            <i data-lucide="copy" class="w-4 h-4"></i>
+            <span>Copy</span>
+        </button>
+        <button onclick="replyToMessage()" class="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-dark-700 text-gray-700 dark:text-gray-300 text-sm">
+            <i data-lucide="reply" class="w-4 h-4"></i>
+            <span>Reply</span>
+        </button>
+        <button id="edit-btn" onclick="editMessage()" class="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-dark-700 text-gray-700 dark:text-gray-300 text-sm hidden">
+            <i data-lucide="edit-2" class="w-4 h-4"></i>
+            <span>Edit</span>
+        </button>
+        <button id="delete-btn" onclick="deleteMessage()" class="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 text-sm hidden">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+            <span>Delete</span>
+        </button>
+    </div>
+</div>
+
+<!-- Settings Modal -->
+<div id="settings-modal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/50 modal-backdrop" onclick="closeSettingsModal()"></div>
+    <div class="absolute inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-lg bg-white dark:bg-dark-900 rounded-2xl shadow-2xl overflow-hidden modal-content">
+        <div class="p-6 border-b border-gray-200 dark:border-dark-800 flex items-center justify-between">
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white">Settings</h2>
+            <button onclick="closeSettingsModal()" class="p-2 hover:bg-gray-100 dark:hover:bg-dark-800 rounded-xl">
+                <i data-lucide="x" class="w-5 h-5 text-gray-500"></i>
+            </button>
+        </div>
+        
+        <div class="p-6 space-y-6 max-h-96 overflow-y-auto">
+            <!-- Chat Background -->
+            <div>
+                <h3 class="font-medium text-gray-900 dark:text-white mb-3">Chat Background</h3>
+                <div class="grid grid-cols-3 gap-3">
+                    <button onclick="setBackground('default')" class="aspect-video rounded-xl bg-gray-100 dark:bg-dark-800 border-2 border-transparent hover:border-primary-500 flex items-center justify-center">
+                        <span class="text-sm text-gray-500">Default</span>
+                    </button>
+                    <button onclick="setBackground('gradient1')" class="aspect-video rounded-xl bg-gradient-to-br from-primary-400 to-purple-500 border-2 border-transparent hover:border-primary-500"></button>
+                    <button onclick="setBackground('gradient2')" class="aspect-video rounded-xl bg-gradient-to-br from-green-400 to-blue-500 border-2 border-transparent hover:border-primary-500"></button>
+                    <label class="aspect-video rounded-xl bg-gray-100 dark:bg-dark-800 border-2 border-transparent hover:border-primary-500 flex items-center justify-center cursor-pointer">
+                        <i data-lucide="upload" class="w-6 h-6 text-gray-500"></i>
+                        <input type="file" accept="image/*" class="hidden" onchange="uploadBackground(this.files[0])">
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Change Password -->
+            <div>
+                <h3 class="font-medium text-gray-900 dark:text-white mb-3">Change Password</h3>
+                <form id="change-password-form" class="space-y-3">
+                    <input 
+                        type="password" 
+                        name="new_password"
+                        placeholder="New password"
+                        class="w-full px-4 py-2.5 bg-gray-100 dark:bg-dark-800 border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    >
+                    <input 
+                        type="password" 
+                        name="confirm_password"
+                        placeholder="Confirm password"
+                        class="w-full px-4 py-2.5 bg-gray-100 dark:bg-dark-800 border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    >
+                    <button type="submit" class="w-full py-2.5 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-xl">
+                        Update Password
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Image Preview Modal -->
+<div id="image-modal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/90" onclick="closeImageModal()"></div>
+    <div class="absolute inset-4 flex items-center justify-center">
+        <img id="modal-image" src="" alt="Preview" class="max-w-full max-h-full object-contain rounded-lg">
+    </div>
+    <button onclick="closeImageModal()" class="absolute top-4 right-4 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white">
+        <i data-lucide="x" class="w-6 h-6"></i>
+    </button>
+    <a id="modal-download" href="" download class="absolute bottom-4 right-4 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white">
+        <i data-lucide="download" class="w-6 h-6"></i>
+    </a>
+</div>
+
+<!-- Hidden data -->
+<input type="hidden" id="current-username" value="{{ username }}">
+<input type="hidden" id="csrf-token" value="{{ csrf_token }}">
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+{% endblock %}

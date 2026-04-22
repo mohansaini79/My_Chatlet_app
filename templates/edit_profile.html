@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Profile - Chatlet{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 dark:bg-dark-950">
+    <!-- Header -->
+    <header class="bg-white dark:bg-dark-900 border-b border-gray-200 dark:border-dark-800 sticky top-0 z-30">
+        <div class="max-w-3xl mx-auto px-4 py-4 flex items-center gap-4">
+            <a href="{{ url_for('chat') }}" class="p-2 hover:bg-gray-100 dark:hover:bg-dark-800 rounded-xl transition-colors">
+                <i data-lucide="arrow-left" class="w-5 h-5 text-gray-600 dark:text-gray-300"></i>
+            </a>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Edit Profile</h1>
+        </div>
+    </header>
+    
+    <!-- Content -->
+    <main class="max-w-3xl mx-auto px-4 py-8">
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="mb-6 p-4 rounded-xl {% if category == 'error' %}bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800{% elif category == 'success' %}bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-800{% else %}bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800{% endif %} flex items-center gap-3">
+                        {% if category == 'error' %}
+                            <i data-lucide="alert-circle" class="w-5 h-5 flex-shrink-0"></i>
+                        {% elif category == 'success' %}
+                            <i data-lucide="check-circle" class="w-5 h-5 flex-shrink-0"></i>
+                        {% else %}
+                            <i data-lucide="info" class="w-5 h-5 flex-shrink-0"></i>
+                        {% endif %}
+                        <span class="text-sm">{{ message }}</span>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <form method="POST" enctype="multipart/form-data" class="space-y-8">
+            <!-- Profile Picture -->
+            <div class="bg-white dark:bg-dark-900 rounded-2xl p-6 shadow-soft card-hover">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Profile Picture</h2>
+                
+                <div class="flex flex-col sm:flex-row items-center gap-6">
+                    <div class="relative">
+                        {% if user and user.profile_picture %}
+                            <img src="{{ user.profile_picture }}" alt="Profile" class="w-32 h-32 rounded-2xl object-cover" id="profile-preview">
+                        {% else %}
+                            <div class="w-32 h-32 rounded-2xl bg-gradient-to-br from-primary-400 to-purple-500 flex items-center justify-center text-white text-4xl font-bold" id="profile-preview">
+                                {{ user.username[0].upper() if user else 'U' }}
+                            </div>
+                        {% endif %}
+                        <label class="absolute bottom-2 right-2 w-10 h-10 bg-primary-500 hover:bg-primary-600 text-white rounded-xl flex items-center justify-center cursor-pointer shadow-lg transition-colors">
+                            <i data-lucide="camera" class="w-5 h-5"></i>
+                            <input type="file" name="profile_picture" accept="image/*" class="hidden" onchange="previewImage(this)">
+                        </label>
+                    </div>
+                    <div class="text-center sm:text-left">
+                        <p class="text-gray-600 dark:text-gray-400 text-sm">
+                            Upload a new profile picture. <br>
+                            JPG, PNG or GIF. Max 5MB.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Account Info -->
+            <div class="bg-white dark:bg-dark-900 rounded-2xl p-6 shadow-soft card-hover">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Account Information</h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Username</label>
+                        <input 
+                            type="text" 
+                            value="{{ user.username if user else '' }}"
+                            disabled
+                            class="w-full px-4 py-3 bg-gray-100 dark:bg-dark-800 border-0 rounded-xl text-gray-500 dark:text-gray-400 cursor-not-allowed"
+                        >
+                        <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Username cannot be changed</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Email</label>
+                        <input 
+                            type="email" 
+                            value="{{ user.email if user else '' }}"
+                            disabled
+                            class="w-full px-4 py-3 bg-gray-100 dark:bg-dark-800 border-0 rounded-xl text-gray-500 dark:text-gray-400 cursor-not-allowed"
+                        >
+                    </div>
+                    
+                    <div>
+                        <label for="bio" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Bio</label>
+                        <textarea 
+                            id="bio"
+                            name="bio"
+                            rows="3"
+                            maxlength="500"
+                            placeholder="Tell us about yourself..."
+                            class="w-full px-4 py-3 bg-gray-50 dark:bg-dark-800 border border-gray-200 dark:border-dark-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                        >{{ user.bio if user else '' }}</textarea>
+                        <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400 text-right">
+                            <span id="bio-count">{{ user.bio|length if user and user.bio else 0 }}</span>/500
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Appearance -->
+            <div class="bg-white dark:bg-dark-900 rounded-2xl p-6 shadow-soft card-hover">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Appearance</h2>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Theme</label>
+                    <div class="grid grid-cols-2 gap-4">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="theme" value="light" class="sr-only peer" {{ 'checked' if not user or user.theme == 'light' else '' }}>
+                            <div class="p-4 rounded-xl border-2 border-gray-200 dark:border-dark-700 peer-checked:border-primary-500 peer-checked:bg-primary-50 dark:peer-checked:bg-primary-900/20 transition-all">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center">
+                                        <i data-lucide="sun" class="w-5 h-5 text-yellow-500"></i>
+                                    </div>
+                                    <div>
+                                        <p class="font-medium text-gray-900 dark:text-white">Light</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">Bright and clean</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </label>
+                        
+                        <label class="cursor-pointer">
+                            <input type="radio" name="theme" value="dark" class="sr-only peer" {{ 'checked' if user and user.theme == 'dark' else '' }}>
+                            <div class="p-4 rounded-xl border-2 border-gray-200 dark:border-dark-700 peer-checked:border-primary-500 peer-checked:bg-primary-50 dark:peer-checked:bg-primary-900/20 transition-all">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-dark-900 border border-dark-700 rounded-xl flex items-center justify-center">
+                                        <i data-lucide="moon" class="w-5 h-5 text-purple-400"></i>
+                                    </div>
+                                    <div>
+                                        <p class="font-medium text-gray-900 dark:text-white">Dark</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">Easy on the eyes</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Save button -->
+            <div class="flex justify-end gap-4">
+                <a href="{{ url_for('chat') }}" class="px-6 py-3 bg-gray-100 dark:bg-dark-800 hover:bg-gray-200 dark:hover:bg-dark-700 text-gray-700 dark:text-gray-300 font-medium rounded-xl transition-colors">
+                    Cancel
+                </a>
+                <button type="submit" class="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white font-semibold rounded-xl shadow-lg shadow-primary-500/30 hover:shadow-primary-500/40 transition-all btn-hover flex items-center gap-2">
+                    <i data-lucide="save" class="w-5 h-5"></i>
+                    <span>Save Changes</span>
+                </button>
+            </div>
+        </form>
+    </main>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Preview image
+    function previewImage(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.getElementById('profile-preview');
+                if (preview.tagName === 'IMG') {
+                    preview.src = e.target.result;
+                } else {
+                    // Replace div with img
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.alt = 'Profile';
+                    img.className = 'w-32 h-32 rounded-2xl object-cover';
+                    img.id = 'profile-preview';
+                    preview.parentNode.replaceChild(img, preview);
+                }
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+    
+    // Bio character count
+    const bioTextarea = document.getElementById('bio');
+    const bioCount = document.getElementById('bio-count');
+    
+    bioTextarea.addEventListener('input', function() {
+        bioCount.textContent = this.value.length;
+    });
+    
+    // Theme change
+    document.querySelectorAll('input[name="theme"]').forEach(input => {
+        input.addEventListener('change', function() {
+            ThemeManager.setTheme(this.value);
+        });
+    });
+    
+    // GSAP animations
+    if (window.gsap) {
+        gsap.from('.card-hover', {
+            y: 20,
+            opacity: 0,
+            duration: 0.5,
+            stagger: 0.1
+        });
+    }
+</script>
+{% endblock %}
